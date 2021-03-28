@@ -1,0 +1,3 @@
+[submodule "harbor"]
+	path = harbor
+	url = https://github.com/goharbor/harbor.git

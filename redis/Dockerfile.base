@@ -1,0 +1,8 @@
+FROM photon:4.0
+
+COPY ./redis-debuginfo-6.0.15-1.ph4.aarch64.rpm /redis/
+COPY ./redis-6.0.15-1.ph4.aarch64.rpm /redis/
+
+RUN tdnf install -y /redis/redis-debuginfo-6.0.15-1.ph4.aarch64.rpm /redis/redis-6.0.15-1.ph4.aarch64.rpm >> /dev/null \
+    && rm -rf /redis \
+    && tdnf clean all

@@ -1,36 +1,88 @@
-# This is a basic workflow to help you get started with Actions
-
 name: CI
+env:
+   POSTGRESQL_HOST: localhost
+   POSTGRESQL_PORT: 5432
+   POSTGRESQL_USR: postgres
+   POSTGRESQL_PWD: root123
+   POSTGRESQL_DATABASE: registry
+   DOCKER_COMPOSE_VERSION: 1.23.0
+   HARBOR_ADMIN: admin
+   HARBOR_ADMIN_PASSWD: Harbor12345
+   CORE_SECRET: tempString
+   KEY_PATH: "/data/secret/keys/secretkey"
+   REDIS_HOST: localhost
+   REG_VERSION: v2.7.1-patch-2819-2553
+   UI_BUILDER_VERSION: 1.6.0
 
-# Controls when the action will run. 
 on:
-  # Triggers the workflow on push or pull request events but only for the main branch
-  push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
+  push:
+    paths-ignore:
+    - 'docs/**'
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
+  APITEST_DB:
+    env:
+      APITEST_DB: true
+    runs-on: [self-hosted, linux, ARM64]
+    timeout-minutes: 100
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Set up Go 1.15
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.15.12
+        id: go
+      - name: setup Docker
+        uses: docker-practice/actions-setup-docker@master
+        with:
+          docker_version: 20.10
+          docker_channel: stable
+      - name: setup Docker Buildx
+        id: buildx
+        uses: crazy-max/ghaction-docker-buildx@v3
+        with:
+          buildx-version: latest
+          qemu-version: latest 
       - uses: actions/checkout@v2
-
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
-
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+        with:
+          path: src/github.com/goharbor/harbor-arm
+      - name: setup env
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          cd src/github.com/goharbor/harbor-arm
+          sudo make download pre_update
+          pwd
+          go env
+          echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+          echo "GOPATH=$(go env GOPATH):$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          echo "TOKEN_PRIVATE_KEY_PATH=${GITHUB_WORKSPACE}/src/github.com/goharbor/harbor-arm/tests/private_key.pem" >> $GITHUB_ENV
+          IP=`hostname -I | awk '{print $1}'`
+          echo "IP=$IP" >> $GITHUB_ENV
+        shell: bash
+      - name: before_install
+        run: |
+          set -x
+          cd src/github.com/goharbor/harbor-arm
+          pwd
+          env
+          df -h
+          #sudo apt install -y xvfb
+          #xvfb-run ls
+          curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` > docker-compose
+          chmod +x docker-compose
+          sudo mv docker-compose /usr/local/bin
+      - name: install
+        run: |
+          set -x
+          cd src/github.com/goharbor/harbor-arm/src/github.com/goharbor/harbor
+          env
+          df -h
+          docker system prune -a -f
+          bash ./tests/showtime.sh ./tests/ci/api_common_install.sh $IP DB
+      - name: script
+        run: |
+          cd src/github.com/goharbor/harbor-arm/src/github.com/goharbor/harbor
+          echo IP: $IP
+          df -h
+          bash ./tests/showtime.sh ./tests/ci/api_run.sh DB $IP
+          df -h

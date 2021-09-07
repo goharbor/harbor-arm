@@ -66,6 +66,7 @@ MAKEPATH=$(BUILDPATH)/make
 MAKE_COMPILE=compile
 MAKE_BUILD_BASE=build_base_docker
 MAKE_ONLINE=package_online
+MAKE_OFFLINE=package_offline
 MAKE_BUILD=build
 
 # parameters
@@ -78,7 +79,12 @@ BUILDBIN=true
 TRIVYVERSION=v0.17.2
 TRIVYADAPTERVERSION=v0.19.0
 
-# version prepare
+# package
+TARCMD=$(shell which tar)
+ZIPCMD=$(shell which gzip)
+DOCKERIMGFILE=harbor-arm
+HARBORPKG=harbor-arm
+
 
 # for docker image tag
 VERSIONTAG=dev-arm
@@ -109,12 +115,12 @@ REGISTRYPASSWORD=
 _update_makefile:
 	@echo "update goharbor makefile"
 	@$(SEDCMDI) 's/--rm/--rm --env CGO_ENABLED=0 --env GOOS=linux --env GOARCH=arm64/g' $(HARBOR_MAKEFILE_PATH);
-	@$(SEDCMDI) 's/$$(DOCKERBUILD)/docker buildx build --platform linux\/arm64 --progress plain --output=type=registry/g' $(HARBOR_MAKEFILE_PATH)
+	@$(SEDCMDI) 's/$$(DOCKERBUILD)/docker buildx build --platform linux\/arm64 --progress plain --output=type=docker/g' $(HARBOR_MAKEFILE_PATH);
 	
 
 _update_make_photon_makefile:
 	@echo "update goharbor photon makefile"
-	@$(SEDCMDI) 's/$(DOCKERCMD) build/$(DOCKERCMD) buildx build --platform linux\/arm64 --progress plain --output=type=registry/' $(HARBOR_PHOTON_MAKEFILE_PATH)
+	@$(SEDCMDI) 's/$(DOCKERCMD) build/$(DOCKERCMD) buildx build --platform linux\/arm64 --progress plain --output=type=docker/' $(HARBOR_PHOTON_MAKEFILE_PATH)
 
 _update_chartserver:
 	@echo "update goharbor chartserver compile.sh"
@@ -143,6 +149,9 @@ pre_update: _update_makefile _update_make_photon_makefile _update_chartserver _u
 download:
 	$(shell git clone --branch $(HARBOR_TAG) $(HARBOR_SOURCE_URL) $(SRCPATH))
 	@echo "download goharbor/harbor source code success"
+	@echo "copy redis.base binary to goharbor/harbor/make/photon/redis fodler"
+	cp -r $(CURDIR)/redis/. $(BUILDPATH)/make/photon/redis
+	cp -r $(CURDIR)/tools/. $(BUILDPATH)/tools/
 
 compile: 
 	cd $(SRCPATH) && make -f Makefile $(MAKE_COMPILE)
@@ -154,11 +163,25 @@ build_base_image:
 
 package_online:
 	cd $(SRCPATH) && make -f Makefile $(MAKE_ONLINE)
+
+package_offline: downlaod pre_update compile build
+	@echo "packing offline package ..."
+	@cp -r make $(HARBORPKG)
+	@cp LICENSE $(HARBORPKG)/LICENSE
+
+	@echo "saving harbor docker image"
+	@$(DOCKERSAVE) $(DOCKERSAVE_PARA) > $(HARBORPKG)/$(DOCKERIMGFILE).$(VERSIONTAG).tar
+	@gzip $(HARBORPKG)/$(DOCKERIMGFILE).$(VERSIONTAG).tar
+
+	@$(TARCMD) $(PACKAGE_OFFLINE_PARA)
+	@rm -rf $(HARBORPKG)
+	@echo "Done."
 	
 .PHONY: build
-build: download pre_update compile 
+build: 
+	@echo "build harbor-arm image"
 	cd $(SRCPATH) && make -f Makefile $(MAKE_BUILD) -e DEVFLAG=$(DEVFLAG) \
 	 -e TRIVY_DOWNLOAD_URL=$(TRIVY_DOWNLOAD_URL) -e TRIVY_ADAPTER_DOWNLOAD_URL=$(TRIVY_ADAPTER_DOWNLOAD_URL) \
 	 -e REGISTRYUSER=$(REGISTRYUSER) -e REGISTRYPASSWORD=$(REGISTRYPASSWOR) \
 	 -e BUILD_PG96=$(BUILD_PG96) -e PULL_BASE_FROM_DOCKERHUB=$(PULL_BASE_FROM_DOCKERHUB) \
-	 -e BUILD_BASE=$(BUILD_BASE)
+	 -e BUILD_BASE=$(BUILD_BASE) -e VERSIONTAG=$(VERSIONTAG)

@@ -2,7 +2,7 @@
 set -x
 set -e
 
-IP=$(hostname -I | awk '{print $1}')
+IP=$(ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6|awk '{print $2}'|tr -d "addr:" | head -n 1)
 docker pull hello-world
 docker pull busybox
 docker login -u admin -p Harbor12345 $IP:5000  

@@ -13,15 +13,84 @@ env:
    REDIS_HOST: localhost
    REG_VERSION: v2.7.1-patch-2819-2553
    UI_BUILDER_VERSION: 1.6.0
+   GO111MODULE: "on"
+   GOPROXY: "https://proxy.golang.org,direct"
+   GOCACHE: "/root/.cache/go-build"
+   GOROOT: "/usr/local/go"
+   GOPATH: "/root/go"
 
 on:
   pull_request:
 
 jobs:
+  UTTEST:
+    env:
+       UTTEST: true
+    runs-on: [self-hosted, linux, ARM64, ci]
+      #- self-hosted
+    timeout-minutes: 100
+    steps:
+      - name: Set up Go 1.15
+        uses: actions/setup-go@v1
+        with:
+           go-version: 1.15.12
+        id: go
+      - uses: actions/checkout@v2
+        with:
+         path: src/github.com/goharbor/harbor-arm
+      - name: setup env
+        run: |
+          cd src/github.com/goharbor/harbor-arm
+          sudo make download compile_redis prepare_arm_data pre_update
+          pwd
+          go env
+          echo "GOPATH=$(go env GOPATH):$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          echo "TOKEN_PRIVATE_KEY_PATH=${GITHUB_WORKSPACE}/src/github.com/goharbor/harbor-arm/tests/private_key.pem" >> $GITHUB_ENV
+        shell: bash
+      - name: before_install
+        run: |
+          set -x
+          cd src/github.com/goharbor/harbor-arm
+          pwd
+          env
+          #sudo apt install -y xvfb
+          #xvfb-run ls
+          sudo pip3 install docker-compose
+          IP=`hostname -I | awk '{print $1}'`
+          echo '{"insecure-registries" : ["'$IP':5000"]}' | sudo tee /etc/docker/daemon.json
+          echo "IP=$IP" >> $GITHUB_ENV
+          sudo cp ./tests/harbor_ca.crt /usr/local/share/ca-certificates/
+          sudo update-ca-certificates
+          sudo service docker restart
+      - name: install
+        run: |
+          cd src/github.com/goharbor/harbor-arm/src/github.com/goharbor/harbor
+          env
+          df -h
+          bash ./tests/showtime.sh ./tests/ci/ut_install.sh
+      - name: script
+        run: |
+          echo IP: $IP
+          df -h
+          cd src/github.com/goharbor/harbor-arm/src/github.com/goharbor/harbor
+          bash ./tests/showtime.sh ./tests/ci/ut_run.sh $IP
+          df -h
+      - name: Codecov For BackEnd
+        uses: codecov/codecov-action@v1
+        with:
+          file: ./src/github.com/goharbor/harbor-arm/profile.cov
+          flags: unittests
+      - name: clean
+        run: |
+          set -x
+          cd src/github.com/goharbor/harbor-arm
+          bash ./tests/ci/clean.sh 
+
   APITEST_DB:
     env:
       APITEST_DB: true
-    runs-on: [self-hosted, linux, ARM64, ci]
+    runs-on: [self-hosted, linux, ARM64, ci, debug]
     timeout-minutes: 100
     steps:
       - name: Set up Go 1.15
@@ -73,6 +142,182 @@ jobs:
       - name: clean
         run: |
           set -x
+          cd src/github.com/goharbor/harbor-arm
+          bash ./tests/ci/clean.sh 
+  
+  APITEST_DB_PROXY_CACHE:
+    env:
+      APITEST_DB: true
+    runs-on: [self-hosted, linux, ARM64, ci]
+      #- self-hosted
+    timeout-minutes: 100
+    steps:
+      - name: Set up Go 1.15
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.15.12
+        id: go
+      - uses: actions/checkout@v2
+        with:
+          path: src/github.com/goharbor/harbor-arm
+      - name: setup env
+        run: |
+          cd src/github.com/goharbor/harbor-arm
+          sudo make download compile_redis prepare_arm_data pre_update
+          pwd
+          go env
+          echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+          echo "GOPATH=$(go env GOPATH):$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          echo "TOKEN_PRIVATE_KEY_PATH=${GITHUB_WORKSPACE}/src/github.com/goharbor/harbor-arm/tests/private_key.pem" >> $GITHUB_ENV
+          IP=`hostname -I | awk '{print $1}'`
+          echo "IP=$IP" >> $GITHUB_ENV
+        shell: bash
+      - name: install
+        run: |
           cd src/github.com/goharbor/harbor-arm/src/github.com/goharbor/harbor
-          bash ./tests/ci/clean.sh $PWD
+          env
+          df -h
+          docker system prune -a -f
+          bash ./tests/showtime.sh ./tests/ci/api_common_install.sh $IP DB
+      - name: script
+        run: |
+          cd src/github.com/goharbor/harbor-arm/src/github.com/goharbor/harbor
+          echo IP: $IP
+          df -h
+          bash ./tests/showtime.sh ./tests/ci/api_run.sh PROXY_CACHE $IP
+          df -h
       
+  APITEST_LDAP:
+    env:
+      APITEST_LDAP: true
+    runs-on: [self-hosted, linux, ARM64, ci]
+      #- self-hosted
+    timeout-minutes: 100
+    steps:
+      - name: Set up Go 1.15
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.15.12
+        id: go
+      - uses: actions/checkout@v2
+        with:
+          path: src/github.com/goharbor/harbor-arm
+      - name: setup env
+        run: |
+          cd src/github.com/goharbor/harbor-arm
+          sudo make download compile_redis prepare_arm_data pre_update
+          pwd
+          go env
+          echo "GOPATH=$(go env GOPATH):$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          echo "TOKEN_PRIVATE_KEY_PATH=${GITHUB_WORKSPACE}/src/github.com/goharbor/harbor-arm/tests/private_key.pem" >> $GITHUB_ENV
+          IP=`hostname -I | awk '{print $1}'`
+          echo "IP=$IP" >> $GITHUB_ENV
+        shell: bash
+      
+      - name: install
+        run: |
+          cd src/github.com/goharbor/harbor-arm/src/github.com/goharbor/harbor
+          env
+          df -h
+          bash ./tests/showtime.sh ./tests/ci/api_common_install.sh $IP LDAP
+      - name: script
+        run: |
+          echo IP: $IP
+          df -h
+          cd src/github.com/goharbor/harbor-arm/src/github.com/goharbor/harbor
+          bash ./tests/showtime.sh ./tests/ci/api_run.sh LDAP $IP
+          df -h
+      - name: clean
+        run: |
+          set -x
+          cd src/github.com/goharbor/harbor-arm
+          bash ./tests/ci/clean.sh
+  
+  OFFLINE:
+    env:
+      OFFLINE: true
+    runs-on: [self-hosted, linux, ARM64, ci]
+      #- self-hosted
+    timeout-minutes: 100
+    steps:
+      - name: Set up Go 1.15
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.15.12
+        id: go
+      - uses: actions/checkout@v2
+        with:
+          path: src/github.com/goharbor/harbor-arm
+      - name: setup env
+        run: |
+          cd src/github.com/goharbor/harbor-arm
+          sudo make download compile_redis prepare_arm_data pre_update
+          pwd
+          docker version
+          go env
+          echo "GOPATH=$(go env GOPATH):$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          echo "TOKEN_PRIVATE_KEY_PATH=${GITHUB_WORKSPACE}/src/github.com/goharbor/harbor-arm/tests/private_key.pem" >> $GITHUB_ENV
+        shell: bash
+      - name: before_install
+        run: |
+          set -x
+          cd src/github.com/goharbor/harbor-arm
+          pwd
+          env
+          df -h
+          #sudo apt install -y xvfb
+          #xvfb-run ls
+          IP=`hostname -I | awk '{print $1}'`
+          echo '{"insecure-registries" : ["'$IP':5000"]}' | sudo tee /etc/docker/daemon.json
+          echo "IP=$IP" >> $GITHUB_ENV
+          sudo cp ./tests/harbor_ca.crt /usr/local/share/ca-certificates/
+          sudo update-ca-certificates
+          sudo service docker restart
+      - name: script
+        run: |
+          echo IP: $IP
+          df -h
+          cd src/github.com/goharbor/harbor-arm/src/github.com/goharbor/harbor
+          bash ./tests/showtime.sh ./tests/ci/distro_installer.sh
+          df -h
+      - name: clean
+        run: |
+          set -x
+          cd src/github.com/goharbor/harbor-arm
+          bash ./tests/ci/clean.sh
+  
+  UI_UT:
+    env:
+      UI_UT: true
+    runs-on: [self-hosted, linux, ARM64, ci]
+      #- self-hosted
+    timeout-minutes: 100
+    steps:
+      - uses: actions/setup-node@v1
+        with:
+          node-version: '16.15.0'
+      - uses: actions/checkout@v2
+        with:
+          path: src/github.com/goharbor/harbor-arm
+      - name: script
+        run: |
+          echo IP: $IP
+          df -h
+          cd src/github.com/goharbor/harbor-arm
+          sudo make download prepare_arm_data
+          cd src/github.com/goharbor/harbor
+          bash ./tests/showtime.sh ./tests/ci/ui_ut_run.sh
+          df -h
+      - name: Codecov For UI
+        uses: codecov/codecov-action@v1
+        with:
+          file:  ./src/github.com/goharbor/harbor-arm/src/github.com/goharbor/harbor/src/portal/coverage/lcov.info
+          flags: unittests
+      - name: clean
+        run: |
+          set -x
+          cd src/github.com/goharbor/harbor-arm
+          bash ./tests/ci/clean.sh

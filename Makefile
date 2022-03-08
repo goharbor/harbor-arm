@@ -164,6 +164,8 @@ prepare_arm_data:
 	cp -r $(CURDIR)/tools/. $(BUILDPATH)/tools/
 	@echo "copy tests bash fodler to goharbor/harbor/tests fodler"
 	cp -r $(CURDIR)/tests/. $(BUILDPATH)/tests/
+	@echo "copy make/prepare file to goharbor/harbor/make fodler"
+	cp -r $(CURDIR)/make/. $(BUILDPATH)/make/
 
 # Rebuild the redis binary file in order to avoid the page-size problem when running on the arm64 machine
 compile_redis:

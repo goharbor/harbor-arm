@@ -24,24 +24,24 @@ python --version
 # in container. So the current work round is read DNS server
 # from system and set the value in /etc/docker/daemon.json.
 
-# ip addr
-# docker_config_file="/etc/docker/daemon.json"
-# dns_ip_string=$(netplan ip leases eth0 | grep -i dns | awk -F = '{print $2}' | tr " " "\n" | sed 's/,/","/g')
-# dns=[\"${dns_ip_string}\"]
-# echo dns=${dns}
-
-# cat $docker_config_file
-# if [ -f $docker_config_file ];then
-#     if [ $(cat /etc/docker/daemon.json |grep \"dns\" |wc -l) -eq 0 ];then
-#         sudo sed "s/}/,\n   \"dns\": $dns\n}/" -i $docker_config_file
-#     fi
-# else
-#     echo "{\"dns\": $dns}" > $docker_config_file
-# fi
-# cat $docker_config_file
-# sudo systemctl stop docker
-# sudo systemctl start docker
-# sleep 2
+#ip addr
+#docker_config_file="/etc/docker/daemon.json"
+#dns_ip_string=$(netplan ip leases eth0 | grep -i dns | awk -F = '{print $2}' | tr " " "\n" | sed 's/,/","/g')
+#dns=[\"${dns_ip_string}\"]
+#echo dns=${dns}
+#
+#cat $docker_config_file
+#if [ -f $docker_config_file ];then
+#    if [ $(cat /etc/docker/daemon.json |grep \"dns\" |wc -l) -eq 0 ];then
+#        sudo sed "s/}/,\n   \"dns\": $dns\n}/" -i $docker_config_file
+#    fi
+#else
+#    echo "{\"dns\": $dns}" > $docker_config_file
+#fi
+#cat $docker_config_file
+#sudo systemctl stop docker
+#sudo systemctl start docker
+#sleep 2
 #------------------------------------------------------------#
 
 sudo ./tests/hostcfg.sh
@@ -60,13 +60,11 @@ sed "s|#   enabled: false|  enabled: true|" -i make/harbor.yml
 sed "s|#   port: 9090|  port: 9090|" -i make/harbor.yml
 sed "s|#   path: /metrics|  path: /metrics|" -i make/harbor.yml
 
-# build
 sudo make compile build prepare COMPILETAG=compile_golangimage GOBUILDTAGS="include_oss include_gcs" BUILDBIN=true NOTARYFLAG=true TRIVYFLAG=true CHARTFLAG=true GEN_TLS=true PULL_BASE_FROM_DOCKERHUB=false
 
 # set the debugging env
 echo "GC_TIME_WINDOW_HOURS=0" | sudo tee -a ./make/common/config/core/env
 
-# harbor-arm 添加start target
 sudo make start
 
 # waiting 5 minutes to start

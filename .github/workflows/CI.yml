@@ -35,7 +35,7 @@ jobs:
       - name: setup env
         run: |
           cd src/github.com/goharbor/harbor-arm
-          sudo make download compile_redis prepare_arm_data pre_update
+          sudo make download compile_redis prepare_arm_data
           pwd
           go env
           echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
@@ -54,7 +54,7 @@ jobs:
           df -h
           #sudo apt install -y xvfb
           #xvfb-run ls
-          sudo pip3 install docker-compose
+          #sudo pip3 install docker-compose
       - name: install
         run: |
           set -x
@@ -74,5 +74,5 @@ jobs:
         run: |
           set -x
           cd src/github.com/goharbor/harbor-arm/src/github.com/goharbor/harbor
-          bash ./tests/ci/clean.sh $PWD
+          bash ./tests/ci/clean.sh
       

@@ -90,68 +90,12 @@ BUILD_BASE=true
 PUSHBASEIMAGE=false
 BASEIMAGENAMESPACE=goharbor
 
-# #input true/false only
-PULL_BASE_FROM_DOCKERHUB=true
-
-# sed location
-SEDCMD=$(shell which sed)
-SEDCMDI=$(SEDCMD) -i
-ifeq ($(shell uname),Darwin)
-    SEDCMDI=$(shell which gsed) -i
-endif
+# input true/false only
+PULL_BASE_FROM_DOCKERHUB=false
 
 # dockerhub user
 REGISTRYUSER=
 REGISTRYPASSWORD=
-
-_update_makefile:
-	@echo "update goharbor makefile"
-	@$(SEDCMDI) 's/--rm/--rm --env CGO_ENABLED=0 --env GOOS=linux --env GOARCH=arm64/g' $(HARBOR_MAKEFILE_PATH);
-	@$(SEDCMDI) 's/$$(DOCKERBUILD)/docker buildx build --platform linux\/arm64 --progress plain --output=type=docker/g' $(HARBOR_MAKEFILE_PATH);
-	@$(SEDCMDI) 's/gen_apis: lint_apis/gen_apis:/g' $(HARBOR_MAKEFILE_PATH);
-	@$(SEDCMDI) 's/_Linux-64bit.tar.gz/_Linux-ARM64.tar.gz/g' $(HARBOR_MAKEFILE_PATH);
-	@$(SEDCMDI) 's/_Linux_x86_64.tar.gz/_Linux_arm64.tar.gz/g' $(HARBOR_MAKEFILE_PATH);
-	@$(SEDCMDI) 's/VERSIONTAG=dev/VERSIONTAG=dev-arm/g' $(HARBOR_MAKEFILE_PATH);
-	@$(SEDCMDI) 's/BASEIMAGETAG=dev/BASEIMAGETAG=dev-arm/g' $(HARBOR_MAKEFILE_PATH);
-	@$(SEDCMDI) 's/BUILD_PG96=true/BUILD_PG96=false/g' $(HARBOR_MAKEFILE_PATH);
-	
-
-_update_make_photon_makefile:
-	@echo "update goharbor photon makefile"
-	@$(SEDCMDI) 's/$(DOCKERCMD) build/$(DOCKERCMD) buildx build --platform linux\/arm64 --progress plain --output=type=docker/' $(HARBOR_PHOTON_MAKEFILE_PATH)
-	@$(SEDCMDI) '219 a \ \ \ \ \ \ \ \ docker buildx prune -f ; \\' $(HARBOR_PHOTON_MAKEFILE_PATH)
-
-_update_chartserver:
-	@echo "update goharbor chartserver compile.sh"
-	@$(SEDCMDI) 's/go build -a/GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -a/g' $(HARBOR_PHOTON_CHARTSERVER_COMPILE_PATH)
-
-_update_registry:
-	@echo "update goharbor registry Dockerfile.binary"
-	@$(SEDCMDI) 's/CGO_ENABLED=0/GOOS=linux GOARCH=arm64 CGO_ENABLED=0/g' $(HARBOR_PHOTON_REGISTRY_DOCKERFILE_PATH)
-
-_update_trivy-adapter:
-	@echo "update goharbor trivy-adapter Dockerfile.binary"
-	@$(SEDCMDI) 's/CGO_ENABLED=0/GOARCH=arm64 CGO_ENABLED=0/g' $(HARBOR_PHOTON_TRIVY-ADAPTER_DOCKERFILE_PATH)
-
-_update_portal:
-	@echo "update goharbor portal Dockerfile"
-	@$(SEDCMDI) 's/node:15.4.0/--platform=$${BUILDPLATFORM:-linux\/amd64} node:15.4.0/g' $(HARBOR_PHOTON_PORTAL_DOCKERFILE_PATH);
-	@$(SEDCMDI) "s/'node_modules\/@angular\/cli\/bin\/ng'/.\/node_modules\/@angular\/cli\/bin\/ng/g" $(HARBOR_PHOTON_PORTAL_DOCKERFILE_PATH)
-
-_update_notary:
-	@echo "update goharbor notary binary.Dockerfile"
-	@$(SEDCMDI) '8 a ENV CGO_ENABLED 0 \nENV GOOS linux \nENV GOARCH arm64' $(HARBOR_PHOTON_NOTARY_DOCKERFILE_PATH)
-	@echo "update goharbor notary builder"
-	@$(SEDCMDI)	's/docker build/docker buildx build --platform linux\/arm64 --progress plain --output=type=docker/g' $(HARBOR_PHOTON_NOTARY_BUILDER_PATH)
-
-_update_exporter:
-	@echo "update goharbor exporter Dockerfile"
-	@$(SEDCMDI) 's/ENV GOARCH=amd64/ENV GOARCH=arm64/g' $(HARBOR_PHOTON_EXPORTER_PATH)
-
-
-
-
-pre_update: _update_makefile _update_make_photon_makefile _update_chartserver _update_registry _update_trivy-adapter _update_notary _update_portal _update_exporter
 
 # downlaod goharbor/harbor source code
 download:
@@ -159,12 +103,39 @@ download:
 	@echo "download goharbor/harbor source code success"
 	
 # Arm data replacement before building harbor arm
-prepare_arm_data:
-	@echo "copy tools fodler to goharbor/harbor/tools fodler"
-	cp -r $(CURDIR)/tools/. $(BUILDPATH)/tools/
-	@echo "copy tests bash fodler to goharbor/harbor/tests fodler"
-	cp -r $(CURDIR)/tests/. $(BUILDPATH)/tests/
+REPLACE_BUILD_FILE_PATH = make/photon/chartserver/compile.sh make/photon/exporter/Dockerfile /make/photon/notary/binary.Dockerfile
+REPLACE_BUILD_FILE_PATH += make/photon/notary/builder make/photon/portal/Dockerfile make/photon/registry/Dockerfile.binary
+REPLACE_BUILD_FILE_PATH += make/photon/trivy-adapter/Dockerfile.binary make/photon/Makefile make/prepare
+REPLACE_BUILD_FILE_PATH += tests/ci/api_common_install.sh tests/ci/api_run.sh tests/ci/ui_ut_run.sh
+REPLACE_BUILD_FILE_PATH += tests/ci/ut_install.sh tests/ci/ut_run.sh Makefile
 
+REPLACE_BUILD_FOLDER_PATH = tools/migrate_chart tools/mockery tools/spectral tools/swagger
+
+# Prepare data phase for building harbor arm architecture
+prepare_arm_data:
+	@for name in $(REPLACE_BUILD_FILE_PATH) ; \
+	do \
+		if [ -f $(BUILDPATH)/$$name ]; then \
+			rm -f $(BUILDPATH)/$$name ; \
+			cp $(CURDIR)/harbor/$$name $(BUILDPATH)/$$name; \
+		else \
+			echo "$(1) file non exsits" ; \
+		fi ;\
+	done
+
+	@for name in $(REPLACE_BUILD_FOLDER_PATH) ; \
+	do \
+		if [ -d $(BUILDPATH)/$$name ]; then \
+			rm -rf $(BUILDPATH)/$$name ; \
+			cp -r $(CURDIR)/harbor/$$name $(BUILDPATH)/$$name ; \
+		else \
+			echo "$(1) folder non exsits" ; \
+		fi ; \
+	done
+
+	@echo "copy clean.sh to goharbor/harbor folder"
+	cp $(CURDIR)/harbor/tests/ci/clean.sh $(BUILDPATH)/tests/ci/clean.sh
+    
 # Rebuild the redis binary file in order to avoid the page-size problem when running on the arm64 machine
 compile_redis:
 	@echo $(CURDIR)
@@ -175,11 +146,6 @@ compile_redis:
 
 compile: 
 	cd $(SRCPATH) && make -f Makefile $(MAKE_COMPILE)
-
-build_base_image: 
-	cd $(SRCPATH) && make -f Makefile $(MAKE_BUILD_BASE) \
-	 -e BASEIMAGETAG=$(BASEIMAGETAG) -e BASEIMAGENAMESPACE=$(BASEIMAGENAMESPACE)  \
-	 -e REGISTRYUSER=$(REGISTRYUSER) -e REGISTRYPASSWORD=$(REGISTRYPASSWORD) -e BUILD_PG96=$(BUILD_PG96)
 
 package_online:
 	cd $(SRCPATH) && make -f Makefile $(MAKE_ONLINE)

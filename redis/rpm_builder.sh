@@ -29,7 +29,7 @@ wget https://raw.githubusercontent.com/vmware/photon/4.0/SPECS/redis/redis-conf.
 # step 3: get spec builder script, and replace version to 4, then to build the redis rpm packages
 wget https://raw.githubusercontent.com/vmware/photon/4.0/tools/scripts/build_spec.sh
 sed "s|VERSION=3|VERSION=4|g" -i build_spec.sh
-chmod 655 ./build_spec.sh && cp $cur/redis.spec .
+chmod 755 ./build_spec.sh && cp $cur/redis.spec .
 
 # step 4: build redis rpm.
 ./build_spec.sh ./redis.spec

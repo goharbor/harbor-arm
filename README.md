@@ -1,4 +1,6 @@
 # harbor-arm
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fgoharbor%2Fharbor-arm.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fgoharbor%2Fharbor-arm?ref=badge_shield)
+
 Build Harbor for arm architecture.
 
 
@@ -43,3 +45,7 @@ make build GOBUILDTAGS="include_oss include_gcs" BUILDBIN=true NOTARYFLAG=true T
 
 
 
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fgoharbor%2Fharbor-arm.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fgoharbor%2Fharbor-arm?ref=badge_large)

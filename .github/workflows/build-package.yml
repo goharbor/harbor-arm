@@ -16,8 +16,8 @@ jobs:
     runs-on:
       - ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: google-github-actions/setup-gcloud@master
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/setup-gcloud@v1
         with:
           version: '285.0.0'
           project_id: ${{ secrets.GCP_PROJECT_ID }}
@@ -26,12 +26,12 @@ jobs:
           export_default_credentials: true
       - run: gcloud info
       - name: Set up Go 1.15
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v4
         with:
           go-version: 1.15.12
         id: go
       - name: setup Docker
-        uses: docker-practice/actions-setup-docker@0.0.1
+        uses: docker-practice/actions-setup-docker@1
         with:
           docker_version: 20.10
           docker_channel: stable
@@ -46,7 +46,7 @@ jobs:
         with:
           format: space-delimited
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
             path: src/github.com/goharbor/harbor-arm
       - name: Build Harbor-ARM Images
